@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>愛酷揪團</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    .card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.11); }
+    .fade-in { animation: fadeIn 0.25s ease forwards; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .progress-fill { transition: width 0.6s cubic-bezier(.4,0,.2,1); }
+    .modal-bg { backdrop-filter: blur(4px); }
+    .toast { animation: slideUp 0.3s ease; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+    .tab-active { border-bottom-color: #6366f1 !important; color: #6366f1 !important; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { opacity: 1; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinning { animation: spin 0.7s linear infinite; display: inline-block; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Toast -->
+<div id="toastCt" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+<!-- ══ CONFIRM MODAL（取代手機不支援的 confirm()）══════════════ -->
+<div id="confirmModal" class="hidden fixed inset-0 z-[60] flex items-end sm:items-center justify-center modal-bg bg-black/50 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm fade-in pb-safe">
+    <div class="p-6">
+      <p id="confirmMsg" class="text-gray-800 font-medium text-center text-base mb-6 leading-relaxed"></p>
+      <div class="flex gap-3">
+        <button onclick="confirmCancel()"
+          class="flex-1 py-3 border border-gray-300 rounded-xl text-gray-600 font-semibold text-sm active:scale-95 transition">取消</button>
+        <button id="confirmOkBtn" onclick="confirmOk()"
+          class="flex-1 py-3 bg-red-500 text-white rounded-xl font-semibold text-sm active:scale-95 transition">確定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ LOGIN SCREEN ══════════════════════════════════════════════ -->
+<div id="loginScreen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+    <div class="text-center mb-7">
+      <div class="text-5xl mb-3">🎯</div>
+      <h1 class="text-2xl font-bold text-gray-800">愛酷揪團</h1>
+      <p class="text-gray-500 text-sm mt-1">輸入名字，開始揪團！</p>
+    </div>
+    <input id="nameInput" type="text" placeholder="你的名字"
+      class="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-400 focus:outline-none text-center text-lg mb-4"
+      maxlength="20" />
+    <button onclick="handleLogin()"
+      class="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold text-lg hover:opacity-90 active:scale-95 transition">
+      進入揪團 →
+    </button>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ═══════════════════════════════════════════════════ -->
+<div id="mainApp" class="hidden">
+
+  <!-- Header -->
+  <header class="bg-white shadow-sm sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <span class="text-2xl">🎯</span>
+        <span class="font-bold text-xl text-gray-800">愛酷揪團</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <!-- 重新整理 -->
+        <button id="refreshBtn" onclick="handleRefresh()" title="重新整理"
+          class="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition text-lg">
+          ↻
+        </button>
+        <div class="flex items-center gap-1.5 bg-indigo-50 px-3 py-1.5 rounded-full">
+          <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+          <span id="userDisplay" class="text-sm font-semibold text-indigo-700"></span>
+        </div>
+        <button onclick="handleLogout()" class="text-xs text-gray-400 hover:text-gray-600 transition">登出</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Category tabs -->
+  <div class="bg-white border-b sticky top-[57px] z-20 overflow-x-auto">
+    <div class="max-w-5xl mx-auto px-4">
+      <div id="tabs" class="flex min-w-max"></div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <main class="max-w-5xl mx-auto px-4 py-6">
+    <div id="banner" class="mb-5 p-4 rounded-xl text-sm hidden"></div>
+    <div id="grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    <div id="emptyState" class="hidden text-center py-20">
+      <div class="text-6xl mb-4">🙈</div>
+      <p class="text-gray-500 text-lg font-medium">還沒有人開團</p>
+      <p class="text-gray-400 text-sm mt-1">成為第一個開團的人吧！</p>
+    </div>
+  </main>
+
+  <!-- FAB -->
+  <button onclick="openCreateModal()"
+    class="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center text-3xl z-20">
+    +
+  </button>
+</div>
+
+<!-- ══ CREATE MODAL ══════════════════════════════════════════════ -->
+<div id="createModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg bg-black/40 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto fade-in">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-xl font-bold text-gray-800">開新團 🎉</h2>
+        <button onclick="closeCreateModal()" class="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">✕</button>
+      </div>
+      <div class="mb-4">
+        <label class="block text-sm font-semibold text-gray-700 mb-2">揪團類型</label>
+        <div class="flex gap-2">
+          <button onclick="setCreateCat('Q2團建')" id="cCat_Q2團建"
+            class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🏢 Q2 團建</button>
+          <button onclick="setCreateCat('飲料')" id="cCat_飲料"
+            class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🧋 飲料</button>
+          <button onclick="setCreateCat('便當')" id="cCat_便當"
+            class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🍱 便當</button>
+        </div>
+      </div>
+      <div id="cQ2Info" class="hidden mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-700">
+        🏢 Q2 團建由公司補助 <strong>500 元</strong>，預設最低成團人數 <strong>8 人</strong>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">活動主軸 <span class="text-red-400">*</span></label>
+          <input id="cTitle" type="text" placeholder="例如：烤肉派對、山海關便當、50嵐..."
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" maxlength="50" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">活動內容 <span class="text-red-400">*</span></label>
+          <textarea id="cContent" rows="3" placeholder="說明活動細節、時間、地點、注意事項..."
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm resize-none" maxlength="300"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">費用（元/人）</label>
+            <input id="cFee" type="number" placeholder="0" min="0"
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" />
+            <p id="cFeeNote" class="hidden text-xs text-indigo-500 mt-1">個人實付 = 費用 − 500 元補助</p>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">最低成團人數</label>
+            <input id="cMinP" type="number" placeholder="8" min="1"
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" />
+          </div>
+        </div>
+      </div>
+      <!-- Image upload -->
+      <div class="mt-4">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">首圖（選填）</label>
+        <input type="file" id="cImage" accept="image/*" class="hidden" onchange="previewImg(this,'cPrev','cPHolder')" />
+        <div onclick="document.getElementById('cImage').click()"
+          class="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-indigo-300 transition">
+          <div id="cPHolder" class="py-5 text-center">
+            <div class="text-3xl">🖼️</div>
+            <p class="text-sm text-gray-400 mt-1">點擊上傳首圖</p>
+            <p class="text-xs text-gray-300">建議 16:9，最大 5MB</p>
+          </div>
+          <div id="cPrev" class="hidden relative">
+            <img id="cPrevImg" class="w-full max-h-44 object-cover" />
+            <button onclick="clearImg('cImage','cPrev','cPHolder');event.stopPropagation()"
+              class="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeCreateModal()"
+          class="flex-1 py-2.5 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold">取消</button>
+        <button onclick="handleCreateGroup()"
+          class="flex-1 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition text-sm">開團！</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT MODAL ════════════════════════════════════════════════ -->
+<div id="editModal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-bg bg-black/40 p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto fade-in">
+    <div class="p-6">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-xl font-bold text-gray-800">管理揪團 ⚙️</h2>
+        <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600 text-xl w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100">✕</button>
+      </div>
+      <input type="hidden" id="eGroupId" />
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">活動主軸 <span class="text-red-400">*</span></label>
+          <input id="eTitle" type="text"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" maxlength="50" />
+        </div>
+        <div>
+          <label class="block text-sm font-semibold text-gray-700 mb-1">活動內容 <span class="text-red-400">*</span></label>
+          <textarea id="eContent" rows="3"
+            class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm resize-none" maxlength="300"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">費用（元/人）</label>
+            <input id="eFee" type="number" min="0"
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" />
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">最低成團人數</label>
+            <input id="eMinP" type="number" min="1"
+              class="w-full px-3 py-2.5 border border-gray-300 rounded-xl focus:border-indigo-400 focus:outline-none text-sm" />
+          </div>
+        </div>
+        <div class="flex items-center justify-between p-3.5 bg-gray-50 rounded-xl border border-gray-100">
+          <div>
+            <p class="font-semibold text-gray-700 text-sm">開放報名</p>
+            <p class="text-xs text-gray-400 mt-0.5">關閉後其他人無法新加入</p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="eIsOpen" class="sr-only peer" />
+            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+          </label>
+        </div>
+      </div>
+      <!-- Image upload -->
+      <div class="mt-4">
+        <label class="block text-sm font-semibold text-gray-700 mb-1">首圖（選填）</label>
+        <input type="hidden" id="eCurrentImg" />
+        <input type="file" id="eImage" accept="image/*" class="hidden" onchange="previewImg(this,'ePrev','ePHolder')" />
+        <div onclick="document.getElementById('eImage').click()"
+          class="border-2 border-dashed border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-indigo-300 transition">
+          <div id="ePHolder" class="py-5 text-center">
+            <div class="text-3xl">🖼️</div>
+            <p class="text-sm text-gray-400 mt-1">點擊上傳新首圖</p>
+          </div>
+          <div id="ePrev" class="hidden relative">
+            <img id="ePrevImg" class="w-full max-h-44 object-cover" />
+            <button onclick="clearImg('eImage','ePrev','ePHolder');document.getElementById('eCurrentImg').value='';event.stopPropagation()"
+              class="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-5">
+        <h3 class="text-sm font-semibold text-gray-700 mb-2">目前參團者</h3>
+        <div id="ePList" class="flex flex-wrap gap-1.5 min-h-[28px]"></div>
+      </div>
+      <div class="flex gap-3 mt-6">
+        <button onclick="handleDeleteGroup()"
+          class="py-2.5 px-4 border border-red-200 text-red-500 rounded-xl hover:bg-red-50 transition text-sm font-semibold">刪除團</button>
+        <button onclick="closeEditModal()"
+          class="flex-1 py-2.5 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold">取消</button>
+        <button onclick="handleUpdateGroup()"
+          class="flex-1 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition text-sm">儲存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCRIPT ════════════════════════════════════════════════════ -->
+<script>
+// ══ 部署後將下方 URL 換成你的 GAS Web App 網址 ══
+const API_URL = 'https://script.google.com/macros/s/AKfycbyRzUe1T8Rh0oWBl0ijOZVpB9QTxgwh9DpXhLRBMPoOpueRC2I0Xk9EAiMpc3A6ACMuzg/exec';
+
+async function api(data) {
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(data)
+  });
+  return r.json();
+}
+
+// ── Config ────────────────────────────────────────────────────────
+
+const CATS = {
+  'Q2團建': { emoji: '🏢', label: 'Q2 團建', color: 'indigo',  subsidy: 500, defaultMin: 8, singleJoin: true  },
+  '飲料':   { emoji: '🧋', label: '飲料揪團', color: 'emerald', subsidy: 0,   defaultMin: 3, singleJoin: false },
+  '便當':   { emoji: '🍱', label: '便當揪團', color: 'amber',   subsidy: 0,   defaultMin: 5, singleJoin: false }
+};
+
+const COL = {
+  indigo:  { badge: 'bg-indigo-100 text-indigo-700',  border: 'border-indigo-400',  text: 'text-indigo-600',  progress: 'bg-indigo-500',  btnFill: 'bg-indigo-500 hover:bg-indigo-600',  light: 'bg-indigo-50',  banner: 'bg-indigo-50 border-indigo-100 text-indigo-700',   sub: 'text-indigo-500'  },
+  emerald: { badge: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-400', text: 'text-emerald-600', progress: 'bg-emerald-500', btnFill: 'bg-emerald-500 hover:bg-emerald-600', light: 'bg-emerald-50', banner: 'bg-emerald-50 border-emerald-100 text-emerald-700', sub: 'text-emerald-500' },
+  amber:   { badge: 'bg-amber-100 text-amber-700',    border: 'border-amber-400',   text: 'text-amber-600',   progress: 'bg-amber-500',   btnFill: 'bg-amber-500 hover:bg-amber-600',   light: 'bg-amber-50',   banner: 'bg-amber-50 border-amber-100 text-amber-700',     sub: 'text-amber-500'   }
+};
+
+// ── State ─────────────────────────────────────────────────────────
+
+const S = {
+  user: localStorage.getItem('accuhit_user') || '',
+  groups: [],
+  participants: [],
+  activeCat: '全部',
+  createCat: 'Q2團建',
+  editingId: null,
+  loading: true,
+  expanded: new Set()
+};
+
+// ── Boot ──────────────────────────────────────────────────────────
+
+window.onload = () => {
+  if (S.user) {
+    boot();
+  } else {
+    show('loginScreen');
+    document.getElementById('nameInput').addEventListener('keypress', e => {
+      if (e.key === 'Enter') handleLogin();
+    });
+  }
+};
+
+function boot() {
+  hide('loginScreen');
+  show('mainApp');
+  document.getElementById('userDisplay').textContent = S.user;
+  renderTabs();
+  renderBanner();
+  loadData();
+  setInterval(() => {
+    const modalsOpen = ['createModal','editModal','confirmModal'].some(
+      id => !document.getElementById(id).classList.contains('hidden')
+    );
+    if (!S.loading && !modalsOpen) loadData();
+  }, 60000);
+}
+
+// ── Auth ──────────────────────────────────────────────────────────
+
+function handleLogin() {
+  const v = document.getElementById('nameInput').value.trim();
+  if (!v) { toast('請輸入你的名字！', 'error'); return; }
+  S.user = v;
+  localStorage.setItem('accuhit_user', v);
+  boot();
+}
+
+function handleLogout() {
+  showConfirm('確定登出嗎？', () => {
+    localStorage.removeItem('accuhit_user');
+    location.reload();
+  });
+}
+
+// ── Data ──────────────────────────────────────────────────────────
+
+function loadData() {
+  // 先顯示快取，讓畫面立刻有內容
+  const raw = localStorage.getItem('accuhit_cache');
+  if (raw) {
+    try {
+      const c = JSON.parse(raw);
+      S.groups = c.groups || [];
+      S.participants = c.participants || [];
+      S.loading = false;
+      renderGrid();
+    } catch(e) {}
+  }
+
+  // 背景拉新資料
+  fetch(API_URL)
+    .then(r => r.json())
+    .then(d => {
+      S.groups = d.groups || [];
+      S.participants = d.participants || [];
+      S.loading = false;
+      localStorage.setItem('accuhit_cache', JSON.stringify(d));
+      renderGrid();
+      stopRefreshSpin();
+    })
+    .catch(err => {
+      S.loading = false;
+      if (!raw) toast('載入失敗，請確認網路或 API 設定', 'error');
+      renderGrid();
+      stopRefreshSpin();
+    });
+}
+
+function handleRefresh() {
+  if (S.loading) return;
+  const btn = document.getElementById('refreshBtn');
+  btn.querySelector('span') ? btn.querySelector('span').classList.add('spinning')
+    : btn.innerHTML = `<span class="spinning">↻</span>`;
+  loadData();
+}
+
+function stopRefreshSpin() {
+  const btn = document.getElementById('refreshBtn');
+  btn.innerHTML = '↻';
+}
+
+// ── Confirm modal（手機安全替代 confirm()）────────────────────────
+
+let _confirmCb = null;
+
+function showConfirm(msg, onOk, okLabel = '確定', danger = true) {
+  _confirmCb = onOk;
+  document.getElementById('confirmMsg').textContent = msg;
+  const okBtn = document.getElementById('confirmOkBtn');
+  okBtn.textContent = okLabel;
+  okBtn.className = `flex-1 py-3 ${danger ? 'bg-red-500' : 'bg-indigo-500'} text-white rounded-xl font-semibold text-sm active:scale-95 transition`;
+  show('confirmModal');
+}
+
+function confirmOk() {
+  hide('confirmModal');
+  if (_confirmCb) { _confirmCb(); _confirmCb = null; }
+}
+
+function confirmCancel() {
+  hide('confirmModal');
+  _confirmCb = null;
+}
+
+// ── Tabs ──────────────────────────────────────────────────────────
+
+function renderTabs() {
+  const allTab = `
+    <button id="tab_全部" onclick="switchCat('全部')"
+      class="px-5 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${S.activeCat === '全部' ? 'tab-active border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+      🎯 所有揪團
+    </button>`;
+  const catTabs = Object.entries(CATS).map(([k, c]) => `
+    <button id="tab_${k}" onclick="switchCat('${k}')"
+      class="px-5 py-3.5 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${S.activeCat === k ? 'tab-active border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+      ${c.emoji} ${c.label}
+    </button>`).join('');
+  document.getElementById('tabs').innerHTML = allTab + catTabs;
+}
+
+function switchCat(cat) {
+  S.activeCat = cat;
+  ['全部', ...Object.keys(CATS)].forEach(k => {
+    const t = document.getElementById('tab_' + k);
+    if (!t) return;
+    if (k === cat) {
+      t.classList.add('tab-active', 'border-indigo-500', 'text-indigo-600');
+      t.classList.remove('border-transparent', 'text-gray-500');
+    } else {
+      t.classList.remove('tab-active', 'border-indigo-500', 'text-indigo-600');
+      t.classList.add('border-transparent', 'text-gray-500');
+    }
+  });
+  renderBanner();
+  renderGrid();
+}
+
+function renderBanner() {
+  const el = document.getElementById('banner');
+  if (S.activeCat === '全部') {
+    el.className = 'mb-5 p-4 rounded-xl text-sm border bg-slate-50 border-slate-200 text-slate-600';
+    el.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-xl">🎯</span>
+        <div>
+          <p class="font-semibold text-slate-700">所有揪團</p>
+          <p class="text-slate-500">顯示全部類型的揪團</p>
+        </div>
+      </div>`;
+    el.classList.remove('hidden');
+    return;
+  }
+  const c = CATS[S.activeCat];
+  const col = COL[c.color];
+  const subs = {
+    'Q2團建': '公司補助 500 元 · 每人限報一個團 · 最低 8 人成團',
+    '飲料':   '揪人一起訂飲料，可同時參加多個團',
+    '便當':   '揪人一起訂便當，可同時參加多個團'
+  };
+  el.className = `mb-5 p-4 rounded-xl text-sm border ${col.banner}`;
+  el.innerHTML = `
+    <div class="flex items-center gap-2">
+      <span class="text-xl">${c.emoji}</span>
+      <div>
+        <p class="font-semibold">${c.label}</p>
+        <p class="${col.sub}">${subs[S.activeCat]}</p>
+      </div>
+    </div>`;
+  el.classList.remove('hidden');
+}
+
+// ── Grid ──────────────────────────────────────────────────────────
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('emptyState');
+
+  if (S.loading) {
+    grid.innerHTML = `
+      <div class="col-span-full flex flex-col items-center py-20 text-gray-400 gap-3">
+        <div class="w-9 h-9 border-4 border-indigo-200 border-t-indigo-500 rounded-full animate-spin"></div>
+        <p>載入中...</p>
+      </div>`;
+    hide('emptyState');
+    return;
+  }
+
+  const catOrder = ['Q2團建', '飲料', '便當'];
+  const filtered = S.groups
+    .filter(g => S.activeCat === '全部' || g.category === S.activeCat)
+    .sort((a, b) => {
+      if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
+      if (S.activeCat === '全部') {
+        const ci = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
+        if (ci !== 0) return ci;
+      }
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+  if (!filtered.length) {
+    grid.innerHTML = '';
+    show('emptyState');
+    return;
+  }
+  hide('emptyState');
+  grid.innerHTML = filtered.map(g => groupCard(g)).join('');
+}
+
+function groupCard(g) {
+  const c = CATS[g.category];
+  const col = COL[c.color];
+  const pts = S.participants.filter(p => p.group_id === g.id);
+  const count = pts.length;
+  const pct = Math.min(100, (count / g.min_participants) * 100);
+  const isMe = g.creator === S.user;
+  const iJoined = pts.some(p => p.name === S.user);
+  const met = count >= g.min_participants;
+
+  let q2Block = false;
+  if (g.category === 'Q2團建' && !iJoined && !isMe) {
+    q2Block = S.participants.some(p => {
+      if (p.name !== S.user) return false;
+      const og = S.groups.find(x => x.id === p.group_id);
+      return og && og.category === 'Q2團建';
+    });
+  }
+
+  const personalFee = g.category === 'Q2團建' ? Math.max(0, g.fee - g.company_subsidy) : g.fee;
+  const feeHtml = g.category === 'Q2團建' && g.fee > 0
+    ? `<span class="line-through text-gray-400 text-xs">$${g.fee}</span> <span class="font-bold ${col.text}">$${personalFee}</span> <span class="text-xs text-gray-400">(公司補助500)</span>`
+    : `<span class="font-bold text-gray-700">$${g.fee}</span>`;
+
+  const statusBadge = g.is_open
+    ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs font-medium">開放中</span>`
+    : `<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">已截止</span>`;
+
+  const meetBadge = met
+    ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs font-medium">✓ 已成團</span>`
+    : `<span class="px-2 py-0.5 ${col.badge} rounded-full text-xs font-medium">還差 ${g.min_participants - count} 人</span>`;
+
+  const pillsHtml = pts.length
+    ? pts.slice(0, 8).map(p =>
+        `<span class="px-2 py-0.5 ${p.name === S.user ? col.badge : 'bg-gray-100 text-gray-600'} rounded-full text-xs">${esc(p.name)}</span>`
+      ).join('') + (pts.length > 8 ? `<span class="px-2 py-0.5 bg-gray-100 text-gray-400 rounded-full text-xs">+${pts.length - 8}</span>` : '')
+    : `<span class="text-xs text-gray-400 italic">還沒有人報名</span>`;
+
+  let actionBtn;
+  if (isMe) {
+    actionBtn = `<button onclick="openEditModal('${g.id}')"
+      class="w-full py-2.5 border-2 ${col.border} ${col.text} rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
+      ⚙️ 管理揪團</button>`;
+  } else if (iJoined) {
+    actionBtn = `<button onclick="handleLeave('${g.id}')"
+      class="w-full py-2.5 border-2 border-gray-200 text-gray-500 rounded-xl text-sm font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-1.5 active:scale-95">
+      ✕ 退出</button>`;
+  } else if (!g.is_open) {
+    actionBtn = `<button disabled
+      class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">
+      報名已截止</button>`;
+  } else if (q2Block) {
+    actionBtn = `<button disabled
+      class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">
+      Q2 只能參加一個團</button>`;
+  } else {
+    actionBtn = `<button onclick="handleJoin('${g.id}')"
+      class="w-full py-2.5 ${col.btnFill} text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
+      + 我要參加</button>`;
+  }
+
+  return `
+    <div class="card bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden fade-in ${!g.is_open ? 'opacity-70' : ''}">
+      ${g.image_url ? `<div class="h-40 bg-gray-100 overflow-hidden"><img src="${g.image_url}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.remove()" /></div>` : ''}
+      <div class="px-4 pt-4 pb-3 border-b border-gray-50">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <span class="inline-flex items-center gap-1 ${col.badge} rounded-full px-2.5 py-0.5 text-xs font-medium mb-1.5">
+              ${c.emoji} ${c.label}
+            </span>
+            <h3 class="font-bold text-gray-800 leading-snug">${esc(g.title)}</h3>
+            <p class="text-xs text-gray-400 mt-0.5">由 <span class="font-semibold text-gray-600">${esc(g.creator)}</span> 開團</p>
+          </div>
+          <div class="flex flex-col items-end gap-1 shrink-0">
+            ${statusBadge}
+            ${meetBadge}
+          </div>
+        </div>
+      </div>
+      <div class="px-4 py-3 space-y-3">
+        <p id="cc_${g.id}" class="text-sm text-gray-600 leading-relaxed ${S.expanded.has(g.id) ? '' : 'line-clamp-2'}">${linkify(g.content)}</p>
+        ${(g.content.length > 55 || g.content.includes('\n')) ? `<button id="cb_${g.id}" onclick="toggleExpand('${g.id}')" class="text-xs text-indigo-400 hover:text-indigo-600 mt-0.5 transition">${S.expanded.has(g.id) ? '收起 ↑' : '看更多 ↓'}</button>` : ''}
+        <div class="flex items-center gap-1.5 text-sm text-gray-500">
+          <span>💰</span>
+          <span class="flex items-center gap-1">${feeHtml} <span class="text-gray-400">/ 人</span></span>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-gray-500 mb-1">
+            <span>湊團進度</span>
+            <span class="font-semibold">${count} / ${g.min_participants} 人</span>
+          </div>
+          <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+            <div class="${col.progress} h-2 rounded-full progress-fill" style="width:${pct}%"></div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-1">${pillsHtml}</div>
+      </div>
+      <div class="px-4 pb-4">${actionBtn}</div>
+    </div>`;
+}
+
+// ── Join / Leave ──────────────────────────────────────────────────
+
+function handleJoin(groupId) {
+  toast('報名中...', 'info');
+  api({ action: 'joinGroup', groupId, name: S.user })
+    .then(r => {
+      if (r.success) { toast('成功加入！✨', 'success'); loadData(); }
+      else toast(r.error || '報名失敗', 'error');
+    })
+    .catch(() => toast('報名失敗，請稍後再試', 'error'));
+}
+
+function handleLeave(groupId) {
+  showConfirm('確定要退出此團嗎？', () => {
+    api({ action: 'leaveGroup', groupId, name: S.user })
+      .then(r => {
+        if (r.success) { toast('已退出', 'success'); loadData(); }
+        else toast(r.error || '退出失敗', 'error');
+      })
+      .catch(() => toast('退出失敗，請稍後再試', 'error'));
+  });
+}
+
+// ── Create group ──────────────────────────────────────────────────
+
+function openCreateModal() {
+  show('createModal');
+  document.getElementById('cTitle').value = '';
+  document.getElementById('cContent').value = '';
+  document.getElementById('cFee').value = '';
+  document.getElementById('cMinP').value = '';
+  clearImg('cImage', 'cPrev', 'cPHolder');
+  setCreateCat(S.activeCat === '全部' ? 'Q2團建' : S.activeCat);
+}
+
+function closeCreateModal() { hide('createModal'); }
+
+function setCreateCat(cat) {
+  S.createCat = cat;
+  const c = CATS[cat];
+  Object.keys(CATS).forEach(k => {
+    const btn = document.getElementById('cCat_' + k);
+    if (!btn) return;
+    const kc = COL[CATS[k].color];
+    if (k === cat) {
+      btn.className = `cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition ${kc.border} ${kc.text} ${kc.light}`;
+    } else {
+      btn.className = 'cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition border-gray-200 text-gray-500';
+    }
+  });
+  const q2 = document.getElementById('cQ2Info');
+  const note = document.getElementById('cFeeNote');
+  if (cat === 'Q2團建') {
+    q2.classList.remove('hidden'); note.classList.remove('hidden');
+    document.getElementById('cMinP').placeholder = '8';
+    document.getElementById('cFee').placeholder = '活動總費用';
+  } else {
+    q2.classList.add('hidden'); note.classList.add('hidden');
+    document.getElementById('cMinP').placeholder = c.defaultMin.toString();
+    document.getElementById('cFee').placeholder = '0';
+  }
+}
+
+async function handleCreateGroup() {
+  const cat = S.createCat;
+  const title = document.getElementById('cTitle').value.trim();
+  const content = document.getElementById('cContent').value.trim();
+  const fee = Number(document.getElementById('cFee').value) || 0;
+  const minPRaw = document.getElementById('cMinP').value;
+  const minP = minPRaw ? Number(minPRaw) : CATS[cat].defaultMin;
+  if (!title) { toast('請填入活動主軸', 'error'); return; }
+  if (!content) { toast('請填入活動內容', 'error'); return; }
+  closeCreateModal();
+
+  let imageUrl = '';
+  const imageFile = document.getElementById('cImage').files[0];
+  if (imageFile) {
+    toast('上傳圖片中...', 'info');
+    imageUrl = await uploadImage(imageFile);
+  }
+
+  toast('開團中...', 'info');
+  api({ action: 'createGroup', category: cat, creator: S.user, title, content,
+        fee, companySubsidy: CATS[cat].subsidy, minParticipants: minP, imageUrl })
+    .then(r => {
+      if (r.success) {
+        toast(r.autoJoined ? '開團成功，已自動加入！🎉' : '開團成功！🎉', 'success');
+        loadData();
+      } else toast(r.error || '開團失敗', 'error');
+    })
+    .catch(() => toast('開團失敗，請稍後再試', 'error'));
+}
+
+// ── Edit group ────────────────────────────────────────────────────
+
+function openEditModal(groupId) {
+  const g = S.groups.find(x => x.id === groupId);
+  if (!g) return;
+  S.editingId = groupId;
+  document.getElementById('eGroupId').value = groupId;
+  document.getElementById('eTitle').value = g.title;
+  document.getElementById('eContent').value = g.content;
+  document.getElementById('eFee').value = g.fee;
+  document.getElementById('eMinP').value = g.min_participants;
+  document.getElementById('eIsOpen').checked = g.is_open;
+  const pts = S.participants.filter(p => p.group_id === groupId);
+  // 顯示現有首圖
+  document.getElementById('eCurrentImg').value = g.image_url || '';
+  document.getElementById('eImage').value = '';
+  if (g.image_url) {
+    document.getElementById('ePrevImg').src = g.image_url;
+    show('ePrev'); hide('ePHolder');
+  } else {
+    hide('ePrev'); show('ePHolder');
+  }
+
+  document.getElementById('ePList').innerHTML = pts.length
+    ? pts.map(p => `
+        <span class="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+          ${esc(p.name)}
+          <button onclick="kickMember('${groupId}','${esc(p.name)}')"
+            class="text-gray-400 hover:text-red-500 transition ml-0.5 leading-none">✕</button>
+        </span>`).join('')
+    : '<span class="text-xs text-gray-400 italic">還沒有人報名</span>';
+  show('editModal');
+}
+
+function closeEditModal() { hide('editModal'); S.editingId = null; }
+
+async function handleUpdateGroup() {
+  const id = document.getElementById('eGroupId').value;
+  const title = document.getElementById('eTitle').value.trim();
+  const content = document.getElementById('eContent').value.trim();
+  const fee = Number(document.getElementById('eFee').value) || 0;
+  const minP = Number(document.getElementById('eMinP').value) || 1;
+  const isOpen = document.getElementById('eIsOpen').checked;
+  if (!title) { toast('請填入活動主軸', 'error'); return; }
+  if (!content) { toast('請填入活動內容', 'error'); return; }
+  closeEditModal();
+
+  let imageUrl = document.getElementById('eCurrentImg').value;
+  const imageFile = document.getElementById('eImage').files[0];
+  if (imageFile) {
+    toast('上傳圖片中...', 'info');
+    imageUrl = await uploadImage(imageFile);
+  }
+
+  api({ action: 'updateGroup', id, creator: S.user, title, content,
+        fee, minParticipants: minP, isOpen, imageUrl })
+    .then(r => {
+      if (r.success) { toast('已更新！', 'success'); loadData(); }
+      else toast(r.error || '更新失敗', 'error');
+    })
+    .catch(() => toast('更新失敗，請稍後再試', 'error'));
+}
+
+function handleDeleteGroup() {
+  const id = document.getElementById('eGroupId').value;
+  showConfirm('確定要刪除此團嗎？\n報名記錄將一併刪除。', () => {
+    closeEditModal();
+    api({ action: 'deleteGroup', id, creator: S.user })
+      .then(r => {
+        if (r.success) { toast('已刪除', 'success'); loadData(); }
+        else toast(r.error || '刪除失敗', 'error');
+      })
+      .catch(() => toast('刪除失敗，請稍後再試', 'error'));
+  });
+}
+
+function kickMember(groupId, name) {
+  showConfirm(`確定要移除「${name}」嗎？`, () => {
+    api({ action: 'leaveGroup', groupId, name })
+      .then(r => {
+        if (r.success) {
+          toast(`已移除 ${name}`, 'success');
+          loadData();
+          setTimeout(() => openEditModal(groupId), 600);
+        } else toast(r.error || '移除失敗', 'error');
+      })
+      .catch(() => toast('移除失敗，請稍後再試', 'error'));
+  });
+}
+
+// ── Toast ─────────────────────────────────────────────────────────
+
+function toast(msg, type = 'info') {
+  const ct = document.getElementById('toastCt');
+  const colors = { success: 'bg-green-500', error: 'bg-red-500', info: 'bg-indigo-500', warning: 'bg-amber-500' };
+  const icons  = { success: '✓', error: '✕', info: 'ℹ', warning: '⚠' };
+  const el = document.createElement('div');
+  el.className = `toast pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl text-white text-sm shadow-lg ${colors[type]}`;
+  el.innerHTML = `<span class="shrink-0 font-bold">${icons[type]}</span><span>${esc(msg)}</span>`;
+  ct.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(String(s ?? '')));
+  return d.innerHTML;
+}
+
+function linkify(s) {
+  return esc(s)
+    .replace(/\n/g, '<br>')
+    .replace(/https?:\/\/[^\s<>"]+/g,
+      url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-indigo-500 underline break-all hover:text-indigo-700">${url}</a>`
+    );
+}
+// ── Image helpers ─────────────────────────────────────────────────
+
+function previewImg(input, prevId, holderId) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast('圖片不能超過 5MB', 'error'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById(prevId + 'Img').src = e.target.result;
+    show(prevId); hide(holderId);
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImg(inputId, prevId, holderId) {
+  document.getElementById(inputId).value = '';
+  hide(prevId); show(holderId);
+}
+
+function readBase64(file) {
+  return new Promise(resolve => {
+    const r = new FileReader();
+    r.onload = e => resolve(e.target.result.split(',')[1]);
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadImage(file) {
+  const b64 = await readBase64(file);
+  return api({ action: 'uploadImage', base64: b64, mimeType: file.type, filename: file.name })
+    .then(r => r.success ? r.url : '')
+    .catch(() => '');
+}
+
+function toggleExpand(groupId) {
+  const contentEl = document.getElementById('cc_' + groupId);
+  const btnEl = document.getElementById('cb_' + groupId);
+  if (!contentEl || !btnEl) return;
+  if (S.expanded.has(groupId)) {
+    S.expanded.delete(groupId);
+    contentEl.classList.add('line-clamp-2');
+    btnEl.textContent = '看更多 ↓';
+  } else {
+    S.expanded.add(groupId);
+    contentEl.classList.remove('line-clamp-2');
+    btnEl.textContent = '收起 ↑';
+  }
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+['createModal', 'editModal', 'confirmModal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target.id === id) {
+      if (id === 'createModal') closeCreateModal();
+      else if (id === 'editModal') closeEditModal();
+      else if (id === 'confirmModal') confirmCancel();
+    }
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeCreateModal(); closeEditModal(); confirmCancel(); }
+});
+</script>
+</body>
+</html>
