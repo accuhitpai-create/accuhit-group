@@ -127,6 +127,8 @@
         <div class="flex gap-2">
           <button onclick="setCreateCat('Q2團建')" id="cCat_Q2團建"
             class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🏢 Q2 團建</button>
+          <button onclick="setCreateCat('Q3活動')" id="cCat_Q3活動"
+            class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🎪 Q3 活動</button>
           <button onclick="setCreateCat('飲料')" id="cCat_飲料"
             class="cat-sel-btn flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition">🧋 飲料</button>
           <button onclick="setCreateCat('便當')" id="cCat_便當"
@@ -259,6 +261,8 @@
       <div class="flex gap-3 mt-6">
         <button onclick="handleDeleteGroup()"
           class="py-2.5 px-4 border border-red-200 text-red-500 rounded-xl hover:bg-red-50 transition text-sm font-semibold">刪除團</button>
+        <button id="disbandBtn" onclick="handleDisbandGroup()"
+          class="py-2.5 px-4 border border-amber-200 text-amber-600 rounded-xl hover:bg-amber-50 transition text-sm font-semibold">流團</button>
         <button onclick="closeEditModal()"
           class="flex-1 py-2.5 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-semibold">取消</button>
         <button onclick="handleUpdateGroup()"
@@ -286,12 +290,14 @@ async function api(data) {
 
 const CATS = {
   'Q2團建': { emoji: '🏢', label: 'Q2 團建', color: 'indigo',  subsidy: 500, defaultMin: 8, singleJoin: true  },
+  'Q3活動': { emoji: '🎪', label: 'Q3 活動', color: 'violet',  subsidy: 0,   defaultMin: 5, singleJoin: false },
   '飲料':   { emoji: '🧋', label: '飲料揪團', color: 'emerald', subsidy: 0,   defaultMin: 3, singleJoin: false },
   '便當':   { emoji: '🍱', label: '便當揪團', color: 'amber',   subsidy: 0,   defaultMin: 5, singleJoin: false }
 };
 
 const COL = {
   indigo:  { badge: 'bg-indigo-100 text-indigo-700',  border: 'border-indigo-400',  text: 'text-indigo-600',  progress: 'bg-indigo-500',  btnFill: 'bg-indigo-500 hover:bg-indigo-600',  light: 'bg-indigo-50',  banner: 'bg-indigo-50 border-indigo-100 text-indigo-700',   sub: 'text-indigo-500'  },
+  violet:  { badge: 'bg-violet-100 text-violet-700',  border: 'border-violet-400',  text: 'text-violet-600',  progress: 'bg-violet-500',  btnFill: 'bg-violet-500 hover:bg-violet-600',  light: 'bg-violet-50',  banner: 'bg-violet-50 border-violet-100 text-violet-700',   sub: 'text-violet-500'  },
   emerald: { badge: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-400', text: 'text-emerald-600', progress: 'bg-emerald-500', btnFill: 'bg-emerald-500 hover:bg-emerald-600', light: 'bg-emerald-50', banner: 'bg-emerald-50 border-emerald-100 text-emerald-700', sub: 'text-emerald-500' },
   amber:   { badge: 'bg-amber-100 text-amber-700',    border: 'border-amber-400',   text: 'text-amber-600',   progress: 'bg-amber-500',   btnFill: 'bg-amber-500 hover:bg-amber-600',   light: 'bg-amber-50',   banner: 'bg-amber-50 border-amber-100 text-amber-700',     sub: 'text-amber-500'   }
 };
@@ -476,6 +482,7 @@ function renderBanner() {
   const col = COL[c.color];
   const subs = {
     'Q2團建': '公司補助 500 元 · 每人限報一個團 · 最低 8 人成團',
+    'Q3活動': '最低 5 人成團，可同時參加多個團',
     '飲料':   '揪人一起訂飲料，可同時參加多個團',
     '便當':   '揪人一起訂便當，可同時參加多個團'
   };
@@ -507,10 +514,11 @@ function renderGrid() {
     return;
   }
 
-  const catOrder = ['Q2團建', '飲料', '便當'];
+  const catOrder = ['Q2團建', 'Q3活動', '飲料', '便當'];
   const filtered = S.groups
     .filter(g => S.activeCat === '全部' || g.category === S.activeCat)
     .sort((a, b) => {
+      if (a.disbanded !== b.disbanded) return a.disbanded ? 1 : -1;
       if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
       if (S.activeCat === '全部') {
         const ci = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
@@ -552,9 +560,11 @@ function groupCard(g) {
     ? `<span class="line-through text-gray-400 text-xs">$${g.fee}</span> <span class="font-bold ${col.text}">$${personalFee}</span> <span class="text-xs text-gray-400">(公司補助500)</span>`
     : `<span class="font-bold text-gray-700">$${g.fee}</span>`;
 
-  const statusBadge = g.is_open
-    ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs font-medium">開放中</span>`
-    : `<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">已截止</span>`;
+  const statusBadge = g.disbanded
+    ? `<span class="px-2 py-0.5 bg-red-100 text-red-500 rounded-full text-xs font-medium">已流團</span>`
+    : g.is_open
+      ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs font-medium">開放中</span>`
+      : `<span class="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">已截止</span>`;
 
   const meetBadge = met
     ? `<span class="px-2 py-0.5 bg-green-100 text-green-600 rounded-full text-xs font-medium">✓ 已成團</span>`
@@ -567,7 +577,13 @@ function groupCard(g) {
     : `<span class="text-xs text-gray-400 italic">還沒有人報名</span>`;
 
   let actionBtn;
-  if (isMe) {
+  if (g.disbanded) {
+    actionBtn = isMe
+      ? `<button onclick="openEditModal('${g.id}')"
+          class="w-full py-2.5 border-2 border-gray-200 text-gray-400 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
+          ⚙️ 管理揪團</button>`
+      : `<button disabled class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">此團已流團</button>`;
+  } else if (isMe) {
     actionBtn = `<button onclick="openEditModal('${g.id}')"
       class="w-full py-2.5 border-2 ${col.border} ${col.text} rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
       ⚙️ 管理揪團</button>`;
@@ -590,7 +606,7 @@ function groupCard(g) {
   }
 
   return `
-    <div class="card bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden fade-in ${!g.is_open ? 'opacity-70' : ''}">
+    <div class="card bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden fade-in ${g.disbanded ? 'opacity-50' : !g.is_open ? 'opacity-70' : ''}">
       ${g.image_url ? `<div class="h-40 bg-gray-100 overflow-hidden"><img src="${g.image_url}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.parentElement.remove()" /></div>` : ''}
       <div class="px-4 pt-4 pb-3 border-b border-gray-50">
         <div class="flex items-start justify-between gap-2">
@@ -745,6 +761,17 @@ function openEditModal(groupId) {
     hide('ePrev'); show('ePHolder');
   }
 
+  const disbandBtn = document.getElementById('disbandBtn');
+  if (g.disbanded) {
+    disbandBtn.textContent = '已流團';
+    disbandBtn.disabled = true;
+    disbandBtn.className = 'py-2.5 px-4 border border-gray-200 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed';
+  } else {
+    disbandBtn.textContent = '流團';
+    disbandBtn.disabled = false;
+    disbandBtn.className = 'py-2.5 px-4 border border-amber-200 text-amber-600 rounded-xl hover:bg-amber-50 transition text-sm font-semibold';
+  }
+
   document.getElementById('ePList').innerHTML = pts.length
     ? pts.map(p => `
         <span class="flex items-center gap-1 px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
@@ -795,6 +822,19 @@ function handleDeleteGroup() {
         else toast(r.error || '刪除失敗', 'error');
       })
       .catch(() => toast('刪除失敗，請稍後再試', 'error'));
+  });
+}
+
+function handleDisbandGroup() {
+  const id = document.getElementById('eGroupId').value;
+  showConfirm('確定要流團嗎？\n此操作將關閉報名，並標記為「已流團」。', () => {
+    closeEditModal();
+    api({ action: 'disbandGroup', id, creator: S.user })
+      .then(r => {
+        if (r.success) { toast('已標記為流團', 'warning'); loadData(); }
+        else toast(r.error || '操作失敗', 'error');
+      })
+      .catch(() => toast('操作失敗，請稍後再試', 'error'));
   });
 }
 
