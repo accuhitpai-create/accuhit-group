@@ -521,12 +521,11 @@ function renderGrid() {
   const filtered = S.groups
     .filter(g => S.activeCat === '全部' || g.category === S.activeCat)
     .sort((a, b) => {
-      if (a.disbanded !== b.disbanded) return a.disbanded ? 1 : -1;
-      if (a.is_open !== b.is_open) return a.is_open ? -1 : 1;
-      if (S.activeCat === '全部') {
-        const ci = catOrder.indexOf(a.category) - catOrder.indexOf(b.category);
-        if (ci !== 0) return ci;
-      }
+      const cntA = S.participants.filter(p => p.group_id === a.id).length;
+      const cntB = S.participants.filter(p => p.group_id === b.id).length;
+      const joinA = !a.disbanded && a.is_open && cntA < a.min_participants;
+      const joinB = !b.disbanded && b.is_open && cntB < b.min_participants;
+      if (joinA !== joinB) return joinA ? -1 : 1;
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
