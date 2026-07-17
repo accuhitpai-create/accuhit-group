@@ -148,16 +148,16 @@ function createGroup(category, creator, title, content, fee, companySubsidy, min
     gs.appendRow([groupId, category, creator, title, content, Number(fee),
       Number(companySubsidy), Number(minParticipants), true, now, imageUrl || '', false]);
 
-    // Auto-join creator unless Q2 constraint blocks them
+    // Auto-join creator unless single-join constraint blocks them
     let autoJoined = true;
-    if (category === 'Q2團建') {
+    if (category === 'Q2團建' || category === 'Q3活動') {
       const gData = gs.getDataRange().getValues();
       const pData = ps.getDataRange().getValues();
       outer:
       for (let i = 1; i < pData.length; i++) {
         if (pData[i][2] === creator) {
           for (let j = 1; j < gData.length; j++) {
-            if (gData[j][0] === pData[i][1] && gData[j][1] === 'Q2團建') {
+            if (gData[j][0] === pData[i][1] && gData[j][1] === category) {
               autoJoined = false;
               break outer;
             }
@@ -246,12 +246,12 @@ function joinGroup(groupId, name) {
       }
     }
 
-    if (category === 'Q2團建') {
+    if (category === 'Q2團建' || category === 'Q3活動') {
       for (let i = 1; i < pData.length; i++) {
         if (pData[i][2] === name) {
           for (let j = 1; j < gData.length; j++) {
-            if (gData[j][0] === pData[i][1] && gData[j][1] === 'Q2團建') {
-              return { success: false, error: 'Q2 團建每人只能參加一個團！' };
+            if (gData[j][0] === pData[i][1] && gData[j][1] === category) {
+              return { success: false, error: category + ' 每人只能參加一個團！' };
             }
           }
         }

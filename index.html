@@ -136,7 +136,10 @@
         </div>
       </div>
       <div id="cQ2Info" class="hidden mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-sm text-indigo-700">
-        🏢 Q2 團建由公司補助 <strong>500 元</strong>，預設最低成團人數 <strong>8 人</strong>
+        🏢 Q2 團建由公司補助 <strong>500 元</strong>，預設最低成團人數 <strong>8 人</strong>，每人限報一個團
+      </div>
+      <div id="cQ3Info" class="hidden mb-4 p-3 bg-violet-50 border border-violet-100 rounded-xl text-sm text-violet-700">
+        🎪 Q3 活動由公司補助 <strong>500 元</strong>，預設最低成團人數 <strong>5 人</strong>，每人限報一個團
       </div>
       <div class="space-y-4">
         <div>
@@ -290,7 +293,7 @@ async function api(data) {
 
 const CATS = {
   'Q2團建': { emoji: '🏢', label: 'Q2 團建', color: 'indigo',  subsidy: 500, defaultMin: 8, singleJoin: true  },
-  'Q3活動': { emoji: '🎪', label: 'Q3 活動', color: 'violet',  subsidy: 0,   defaultMin: 5, singleJoin: false },
+  'Q3活動': { emoji: '🎪', label: 'Q3 活動', color: 'violet',  subsidy: 500, defaultMin: 5, singleJoin: true  },
   '飲料':   { emoji: '🧋', label: '飲料揪團', color: 'emerald', subsidy: 0,   defaultMin: 3, singleJoin: false },
   '便當':   { emoji: '🍱', label: '便當揪團', color: 'amber',   subsidy: 0,   defaultMin: 5, singleJoin: false }
 };
@@ -482,7 +485,7 @@ function renderBanner() {
   const col = COL[c.color];
   const subs = {
     'Q2團建': '公司補助 500 元 · 每人限報一個團 · 最低 8 人成團',
-    'Q3活動': '最低 5 人成團，可同時參加多個團',
+    'Q3活動': '公司補助 500 元 · 每人限報一個團 · 最低 5 人成團',
     '飲料':   '揪人一起訂飲料，可同時參加多個團',
     '便當':   '揪人一起訂便當，可同時參加多個團'
   };
@@ -546,17 +549,18 @@ function groupCard(g) {
   const iJoined = pts.some(p => p.name === S.user);
   const met = count >= g.min_participants;
 
-  let q2Block = false;
-  if (g.category === 'Q2團建' && !iJoined && !isMe) {
-    q2Block = S.participants.some(p => {
+  let singleJoinBlock = false;
+  if (CATS[g.category]?.singleJoin && !iJoined && !isMe) {
+    singleJoinBlock = S.participants.some(p => {
       if (p.name !== S.user) return false;
       const og = S.groups.find(x => x.id === p.group_id);
-      return og && og.category === 'Q2團建';
+      return og && og.category === g.category;
     });
   }
 
-  const personalFee = g.category === 'Q2團建' ? Math.max(0, g.fee - g.company_subsidy) : g.fee;
-  const feeHtml = g.category === 'Q2團建' && g.fee > 0
+  const hasSubsidy = g.category === 'Q2團建' || g.category === 'Q3活動';
+  const personalFee = hasSubsidy ? Math.max(0, g.fee - g.company_subsidy) : g.fee;
+  const feeHtml = hasSubsidy && g.fee > 0
     ? `<span class="line-through text-gray-400 text-xs">$${g.fee}</span> <span class="font-bold ${col.text}">$${personalFee}</span> <span class="text-xs text-gray-400">(公司補助500)</span>`
     : `<span class="font-bold text-gray-700">$${g.fee}</span>`;
 
@@ -599,10 +603,10 @@ function groupCard(g) {
     actionBtn = `<button disabled
       class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">
       報名已截止</button>`;
-  } else if (q2Block) {
+  } else if (singleJoinBlock) {
     actionBtn = `<button disabled
       class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">
-      Q2 只能參加一個團</button>`;
+      ${CATS[g.category]?.label} 只能參加一個團</button>`;
   } else {
     actionBtn = `<button onclick="handleJoin('${g.id}')"
       class="w-full py-2.5 ${col.btnFill} text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
@@ -700,13 +704,18 @@ function setCreateCat(cat) {
     }
   });
   const q2 = document.getElementById('cQ2Info');
+  const q3 = document.getElementById('cQ3Info');
   const note = document.getElementById('cFeeNote');
+  q2.classList.add('hidden'); q3.classList.add('hidden'); note.classList.add('hidden');
   if (cat === 'Q2團建') {
     q2.classList.remove('hidden'); note.classList.remove('hidden');
     document.getElementById('cMinP').placeholder = '8';
     document.getElementById('cFee').placeholder = '活動總費用';
+  } else if (cat === 'Q3活動') {
+    q3.classList.remove('hidden'); note.classList.remove('hidden');
+    document.getElementById('cMinP').placeholder = '5';
+    document.getElementById('cFee').placeholder = '活動總費用';
   } else {
-    q2.classList.add('hidden'); note.classList.add('hidden');
     document.getElementById('cMinP').placeholder = c.defaultMin.toString();
     document.getElementById('cFee').placeholder = '0';
   }
