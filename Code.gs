@@ -228,7 +228,17 @@ function joinGroup(groupId, name) {
     const isOpen = groupRow[8] === true || String(groupRow[8]).toUpperCase() === 'TRUE';
     if (!isOpen) return { success: false, error: '此團已停止報名' };
 
+    const isDisbanded = groupRow[11] === true || String(groupRow[11] || '').toUpperCase() === 'TRUE';
+    if (isDisbanded) return { success: false, error: '此團已流團' };
+
+    const minParticipants = Number(groupRow[7]) || 1;
     const category = groupRow[1];
+
+    let currentCount = 0;
+    for (let i = 1; i < pData.length; i++) {
+      if (pData[i][1] === groupId) currentCount++;
+    }
+    if (currentCount >= minParticipants) return { success: false, error: '此團已達成團人數，報名已截止' };
 
     for (let i = 1; i < pData.length; i++) {
       if (pData[i][1] === groupId && pData[i][2] === name) {

@@ -583,6 +583,10 @@ function groupCard(g) {
           class="w-full py-2.5 border-2 border-gray-200 text-gray-400 rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
           ⚙️ 管理揪團</button>`
       : `<button disabled class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">此團已流團</button>`;
+  } else if (met && !isMe && !iJoined) {
+    actionBtn = `<button disabled
+      class="w-full py-2.5 bg-gray-100 text-gray-400 rounded-xl text-sm font-semibold cursor-not-allowed">
+      已成團，名額已滿</button>`;
   } else if (isMe) {
     actionBtn = `<button onclick="openEditModal('${g.id}')"
       class="w-full py-2.5 border-2 ${col.border} ${col.text} rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 active:scale-95">
